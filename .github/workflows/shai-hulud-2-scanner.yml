@@ -119,7 +119,7 @@ jobs:
             https://github.com/elissiafellow/shai-hulud-2-scanner.git .; then
               echo "❌ Failed to clone scanner repository"
               echo "   Version: $SCANNER_VERSION"
-              echo "   Repository: https://github.com/CyberDracula/shai-hulud-2-scanner.git"
+              echo "   Repository: https://github.com/elissiafellow/shai-hulud-2-scanner.git"
               exit 1
             fi
             # Verify we got the right version
