@@ -1,0 +1,15 @@
+name: Shai-Hulud 2 Supply Chain Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  shai-hulud-scan:
+    uses: elissiafellow/shai-hulud-2-scanner/.github/workflows/shai-hulud-2-scanner.yml@v1.3.1
+    with:
+      node_version: "18"
+      scan_target: "."
+      fail_on: "low"
+      strip_private_deps: false
