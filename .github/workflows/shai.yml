@@ -1,0 +1,187 @@
+name: Shai-Hulud 2 Scanner
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'Pull request number (for commenting)'
+        required: false
+        type: number
+      strip_private_deps:
+        description: 'Remove private git dependencies before npm install'
+        required: false
+        type: boolean
+        default: false
+      node_version:
+        description: 'Node.js version to use for this repo'
+        required: true
+        type: string
+      npm_version:
+        description: 'npm version (optional)'
+        required: false
+        type: string
+        default: ''
+      scan_target:
+        description: 'Directory to scan for Shai-Hulud 2 indicators'
+        required: false
+        type: string
+        default: ''
+      scanner_version:
+        description: 'Scanner version/tag to use'
+        required: false
+        type: string
+        default: 'v1.3.1'
+      fail_on:
+        description: 'Severity level to fail on (critical, high, medium, low)'
+        required: false
+        type: string
+        default: 'critical'
+   
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Modify package.json (remove private deps)
+        if: inputs.strip_private_deps
+        run: |
+          jq 'del(.devDependencies["mf-ni-wrapper"]) |
+              del(.devDependencies["com.adjust.sdk"])' \
+            package.json > temp.package.json
+
+      - name: Verify Node version
+        run: |
+          echo "Using Node $(node -v)"
+          echo "Using npm $(npm -v)"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Setup npm (if required)
+        if: inputs.npm_version != ''
+        run: |
+          npm install -g npm@${{ inputs.npm_version }}
+          npm -v
+
+
+      - name: Cache scanner
+        uses: actions/cache@v3
+        id: scanner-cache
+        with:
+          path: ~/.cache/shai-hulud-scanner
+          key: shai-hulud-scanner-${{ inputs.scanner_version }}
+          restore-keys: |
+            shai-hulud-scanner-
+
+      # - name: Install dependencies with npm
+      #   run: npm install
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
+            mv package.json original.package.json
+            mv temp.package.json package.json
+          fi
+
+          npm install
+
+          if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
+            mv original.package.json package.json
+          fi
+
+      - name: Run Shai-Hulud Supply Chain Scanner
+        id: scan
+        run: |
+          set -uo pipefail
+          WORK_DIR="${{ github.workspace }}"
+          SCAN_TARGET="${{ inputs.scan_target || github.workspace }}"
+          SCAN_WORKDIR="$WORK_DIR/npm-scanner"
+          SCANNER_CACHE="$HOME/.cache/shai-hulud-scanner"
+          SCANNER_VERSION="${{ inputs.scanner_version }}"
+          echo "📦 Scanning node_modules for Shai-Hulud 2 indicators"
+          echo "TARGET: $SCAN_TARGET"
+          echo "WORKDIR: $SCAN_WORKDIR"
+          echo "SCANNER_VERSION: $SCANNER_VERSION"
+          echo "FAIL_ON: ${{ inputs.fail_on }}"
+          mkdir -p "$SCAN_WORKDIR"
+          cd "$SCAN_WORKDIR"
+          # Use cached scanner if available and version matches
+          if [ -d "$SCANNER_CACHE" ] && [ -f "$SCANNER_CACHE/.version" ] && \
+             [ "$(cat "$SCANNER_CACHE/.version" 2>/dev/null)" == "$SCANNER_VERSION" ]; then
+            echo "✅ Using cached scanner (version: $SCANNER_VERSION)"
+            cp -r "$SCANNER_CACHE"/* . 2>/dev/null || cp -r "$SCANNER_CACHE"/. .
+          else
+            echo "📥 Cloning scanner repository (version: $SCANNER_VERSION)..."
+            if ! git clone --branch "$SCANNER_VERSION" --single-branch --depth 1 \
+            https://github.com/elissiafellow/shai-hulud-2-scanner.git .; then
+              echo "❌ Failed to clone scanner repository"
+              echo "   Version: $SCANNER_VERSION"
+              echo "   Repository: https://github.com/CyberDracula/shai-hulud-2-scanner.git"
+              exit 1
+            fi
+            # Verify we got the right version
+            # When cloning a tag, git shows commit SHA in detached HEAD state, which is normal
+            if [ -f ".git/HEAD" ]; then
+              HEAD_CONTENT=$(cat .git/HEAD)
+              # Check if we're on the expected tag
+              if git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^$SCANNER_VERSION$"; then
+                echo "✅ Verified scanner version: $SCANNER_VERSION"
+              elif git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^${SCANNER_VERSION#v}$"; then
+                echo "✅ Verified scanner version: ${SCANNER_VERSION#v}"
+              else
+                # In detached HEAD state with tag, this is normal - just log it
+                CURRENT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "detached-HEAD")
+                if [ "$CURRENT_TAG" != "detached-HEAD" ]; then
+                  echo "✅ Scanner cloned successfully (tag: $CURRENT_TAG)"
+                else
+                  echo "✅ Scanner cloned successfully (detached HEAD state is normal for tag clones)"
+                fi
+              fi
+            fi
+            # Cache for future runs
+            mkdir -p "$SCANNER_CACHE"
+            cp -r . "$SCANNER_CACHE/" 2>/dev/null || {
+              echo "⚠️  Warning: Could not cache scanner (non-fatal)"
+            }
+            echo "$SCANNER_VERSION" > "$SCANNER_CACHE/.version"
+          fi
+          # Verify scanner files exist
+          if [ ! -f "scan.js" ]; then
+            echo "❌ Scanner file 'scan.js' not found after clone/cache"
+            exit 1
+          fi
+          # Do the scan
+          echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
+          SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
+          if node scan.js "$SCAN_TARGET" --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
+            SCAN_EXIT=0
+          else
+            SCAN_EXIT=$?
+          fi
+          # Output results
+          echo ""
+          echo "=== Scan Results ==="
+          cat "$SCAN_OUTPUT_FILE"
+          echo "===================="
+          echo ""
+          # Copy CSV report if it exists (scanner generates it in current directory)
+          if [ -f "shai-hulud-report.csv" ]; then
+            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️  Could not copy CSV report (non-fatal)"
+            echo "📄 CSV report available: shai-hulud-report.csv"
+          fi
+          # Set output for downstream steps
+          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
+          echo "SCAN_RESULTS_FILE=$SCAN_OUTPUT_FILE" >> $GITHUB_OUTPUT
+          # Cleanup scanner workdir (keep results file and CSV)
+          cd "$WORK_DIR"
+          rm -rf "$SCAN_WORKDIR"
+          if [ $SCAN_EXIT -ne 0 ]; then
+            echo "❌ Scanner found issues (exit code: $SCAN_EXIT)"
+            echo "   Review scan results above for details"
+          else
+            echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
+          fi
+          exit $SCAN_EXIT
