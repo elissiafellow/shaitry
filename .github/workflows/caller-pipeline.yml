@@ -7,7 +7,7 @@ on:
 
 jobs:
   shai-hulud-scan:
-    uses: elissiafellow/shai-hulud-2-scanner/.github/workflows/shai-hulud-2-scanner.yml@v1.3.1
+    uses: elissiafellow/shai-hulud-2-scanner/.github/workflows/shai-hulud-2-scanner.yml@vmain
     with:
       node_version: "18"
       scan_target: "."
