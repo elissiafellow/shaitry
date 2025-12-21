@@ -10,6 +10,6 @@ jobs:
     uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
     with:
       node_version: "18"
-      scan_target: "."
+      scan_target: ${{ github.workspace }}
       fail_on: "low"
       strip_private_deps: false
