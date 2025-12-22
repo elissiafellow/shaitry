@@ -3,6 +3,11 @@ name: Shai-Hulud 2 Scanner
 on:
   workflow_call:
     inputs:
+      package_dirs:
+        description: "Directories containing package.json files (space-separated). Use '.' for root."
+        required: false
+        type: string
+        default: "."
       pr_number:
         description: 'Pull request number (for commenting)'
         required: false
@@ -30,7 +35,7 @@ on:
         description: 'Scanner version/tag to use'
         required: false
         type: string
-        default: 'v1.3.1'
+        default: 'v2.0.0'
       fail_on:
         description: 'Severity level to fail on (critical, high, medium, low)'
         required: false
@@ -52,14 +57,15 @@ jobs:
               del(.devDependencies["com.adjust.sdk"])' \
             package.json > temp.package.json
 
-      - name: Verify Node version
-        run: |
-          echo "Using Node $(node -v)"
-          echo "Using npm $(npm -v)"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
+
+      - name: Verify Node version
+        run: |
+          echo "Using Node $(node -v)"
+          echo "Using npm $(npm -v)"
 
       - name: Setup npm (if required)
         if: inputs.npm_version != ''
@@ -81,6 +87,13 @@ jobs:
       #   run: npm install
       - name: Install dependencies
         run: |
+          set -e
+          for dir in ${{ inputs.package_dirs }}; do
+            echo "Installing dependencies in directory: $dir"
+          if [ ! -f "$dir/package.json" ]; then
+            echo "⚠️  Warning: No package.json found in $dir, skipping npm install"
+            continue
+          fi
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv package.json original.package.json
             mv temp.package.json package.json
