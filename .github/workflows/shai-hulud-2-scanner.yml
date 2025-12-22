@@ -35,7 +35,7 @@ on:
         description: 'Scanner version/tag to use'
         required: false
         type: string
-        default: 'v2.0.0'
+        default: 'v1.3.1'
       fail_on:
         description: 'Severity level to fail on (critical, high, medium, low)'
         required: false
