@@ -87,13 +87,7 @@ jobs:
       #   run: npm install
       - name: Install dependencies
         run: |
-          set -e
-          for dir in ${{ inputs.package_dirs }}; do
-            echo "Installing dependencies in directory: $dir"
-          if [ ! -f "$dir/package.json" ]; then
-            echo "⚠️  Warning: No package.json found in $dir, skipping npm install"
-            continue
-          fi
+          
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv package.json original.package.json
             mv temp.package.json package.json
