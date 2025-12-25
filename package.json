@@ -1,9 +1,9 @@
 {
-    "name": "scanner-malicious-test",
+    "name": "scanner-test-real",
     "version": "1.0.0",
     "dependencies": {
-        "@postman/tunnel-agent": "0.6.7",
-        "posthog-node": "4.18.1",
-        "@asyncapi/specs": "6.8.3"
+        "zapier-platform-core": "latest",
+        "zapier-platform-cli": "latest",
+        "@posthog/agent": "latest"
     }
 }
