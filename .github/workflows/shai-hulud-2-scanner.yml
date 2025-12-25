@@ -100,10 +100,9 @@ jobs:
           cat "$SCAN_OUTPUT_FILE"
           echo "===================="
 
-          CSV_REPORT_FILE="$WORK_DIR/shai-hulud-report-$(echo "$SCAN_TARGET" | tr '/.' '__').csv"
           if [ -f "shai-hulud-report.csv" ]; then
-            mv "shai-hulud-report.csv" "$CSV_REPORT_FILE" || echo "⚠️ Could not rename CSV report"
-            echo "📄 CSV report available: $CSV_REPORT_FILE"
+            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️ Could not copy CSV report"
+            echo "📄 CSV report available"
           fi
 
           echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
@@ -123,10 +122,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shai-hulud-scan-results-${{ github.run_id }}-$(echo "${{ inputs.scan_target }}" | tr '/.' '__')
+          name: shai-hulud-scan-results-${{ github.run_id }}-${{ inputs.scan_target }}
           path: |
             scan-results-*.txt
-            shai-hulud-report-*.csv
-          retention-days: 30
-          if-no-files-found: ignore
+            shai-hulud-report.csv
       
