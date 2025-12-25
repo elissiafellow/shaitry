@@ -177,7 +177,7 @@ jobs:
           fi
           exit $SCAN_EXIT
  #change
-      - name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}
+      - name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
