@@ -1,15 +1,7 @@
 {
-    "name": "bad-project",
+    "name": "frontend-bad",
     "version": "1.0.0",
-    "description": "A project with a problematic dependency",
-    "main": "index.js",
-    "scripts": {
-        "start": "node index.js"
-    },
     "dependencies": {
         "event-stream": "3.3.4"
-    },
-    "devDependencies": {
-        "left-pad": "9999.0.0"
     }
 }
