@@ -176,13 +176,11 @@ jobs:
             echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
           fi
           exit $SCAN_EXIT
-
-      - name: Upload scan results
+ #change
+      - name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          #change
-          name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}
           path: |
             scan-results.txt
             shai-hulud-report.csv
