@@ -123,7 +123,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shai-hulud-scan-results-${{ github.run_id }}
+          name: shai-hulud-scan-results-${{ github.run_id }}-$(echo "${{ inputs.scan_target }}" | tr '/.' '__')
           path: |
             scan-results-*.txt
             shai-hulud-report-*.csv
+          retention-days: 30
+          if-no-files-found: ignore
+      
