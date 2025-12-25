@@ -73,8 +73,6 @@ jobs:
       #     restore-keys: |
       #       shai-hulud-scanner-
 
-      # - name: Install dependencies with npm
-      #   run: npm install
       # - name: Install dependencies
       #   run: |
       #     if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
@@ -135,11 +133,24 @@ jobs:
              continue
             fi
 
-            if [ ! -d "$WORK_DIR/$DIR/node_modules" ] && \
-              [ ! -f "$WORK_DIR/$DIR/package-lock.json" ]; then
-              echo "Skipping $DIR (no node_modules or lockfile)"
-              continue
+            echo "📦 Installing dependencies in $DIR"
+            cd "$WORK_DIR/$DIR"
+
+            if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f package.json ]; then
+              jq 'del(.devDependencies["mf-ni-wrapper"]) |
+                  del(.devDependencies["com.adjust.sdk"])' \
+                package.json > temp.package.json
+              mv package.json original.package.json
+              mv temp.package.json package.json
             fi
+
+            npm install --ignore-scripts --no-audit --no-fund
+
+            if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f original.package.json ]; then
+              mv original.package.json package.json
+            fi
+
+            cd "$SCAN_WORKDIR"
       
             RESULT_FILE="$WORK_DIR/scan-results-$(echo "$DIR" | tr '/.' '__').txt"
       
