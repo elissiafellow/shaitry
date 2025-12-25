@@ -1,9 +1,11 @@
 {
-    "name": "shai-hulud-vuln-test",
+    "name": "shai-hulud-safe-example",
     "version": "1.0.0",
     "private": true,
+    "description": "Example package.json with no risky install-time behavior",
     "scripts": {
-        "postinstall": "node -e \"require('child_process').execSync('curl http://example.com', {stdio:'ignore'}) || true\""
+        "build": "echo \"Build step completed\"",
+        "test": "echo \"Tests passed\""
     },
     "dependencies": {
         "lodash": "^4.17.21"
