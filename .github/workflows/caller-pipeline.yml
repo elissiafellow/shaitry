@@ -7,10 +7,19 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  shai-hulud-scan:
+  scan-root:
     uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
     with:
       node_version: "18"
       fail_on: "low"
       strip_private_deps: false
-      scan_target: ".,frontend"
+      scan_target: "."  # root package.json
+
+  scan-frontend:
+    needs: scan-root
+    uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
+    with:
+      node_version: "18"
+      fail_on: "low"
+      strip_private_deps: false
+      scan_target: "frontend"  # frontend package.json

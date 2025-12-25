@@ -3,10 +3,6 @@ name: Shai-Hulud 2 Scanner
 on:
   workflow_call:
     inputs:
-      pr_number:
-        description: 'Pull request number (for commenting)'
-        required: false
-        type: number
       strip_private_deps:
         description: 'Remove private git dependencies before npm install'
         required: false
@@ -22,16 +18,15 @@ on:
         type: string
         default: ''
       scan_target:
-        description: 'Comma-separated directories to scan (each must contain package.json)'
+        description: 'Directory to scan for Shai-Hulud 2 indicators'
         required: false
         type: string
-        default: ''
+        default: '.'
       fail_on:
         description: 'Severity level to fail on (critical, high, medium, low)'
         required: false
         type: string
         default: 'critical'
-   
 
 jobs:
   scan:
@@ -39,23 +34,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Modify package.json (remove private deps)
-        if: inputs.strip_private_deps
-        run: |
-          jq 'del(.devDependencies["mf-ni-wrapper"]) |
-              del(.devDependencies["com.adjust.sdk"])' \
-            package.json > temp.package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
-
-      - name: Verify Node version
-        run: |
-          echo "Using Node $(node -v)"
-          echo "Using npm $(npm -v)"
 
       - name: Setup npm (if required)
         if: inputs.npm_version != ''
@@ -63,119 +46,77 @@ jobs:
           npm install -g npm@${{ inputs.npm_version }}
           npm -v
 
-
-      # - name: Cache scanner
-      #   uses: actions/cache@v3
-      #   id: scanner-cache
-      #   with:
-      #     path: ~/.cache/shai-hulud-scanner
-      #     key: shai-hulud-scanner
-      #     restore-keys: |
-      #       shai-hulud-scanner-
-
-      # - name: Install dependencies
-      #   run: |
-      #     if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
-      #       mv package.json original.package.json
-      #       mv temp.package.json package.json
-      #     fi
-
-      #     npm install
-
-      #     if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
-      #       mv original.package.json package.json
-      #     fi
+      - name: Install dependencies (optional private dep removal)
+        run: |
+          DIR="${{ inputs.scan_target }}"
+          echo "Installing dependencies in $DIR"
+          cd "$DIR"
+          if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f package.json ]; then
+            jq 'del(.devDependencies["mf-ni-wrapper"]) |
+                del(.devDependencies["com.adjust.sdk"])' \
+              package.json > temp.package.json
+            mv package.json original.package.json
+            mv temp.package.json package.json
+          fi
+          npm install --ignore-scripts --no-audit --no-fund
+          if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f original.package.json ]; then
+            mv original.package.json package.json
+          fi
+          cd -
 
       - name: Run Shai-Hulud Supply Chain Scanner
         id: scan
         run: |
           set -euo pipefail
-      
           WORK_DIR="${{ github.workspace }}"
-          SCAN_TARGETS="${{ inputs.scan_target }}"
+          SCAN_TARGET="${{ inputs.scan_target }}"
           SCAN_WORKDIR="$WORK_DIR/npm-scanner"
-      
-          echo "📦 Shai-Hulud 2 Scan"
-          echo "Targets: ${SCAN_TARGETS:-.}"
-          echo "Fail on: ${{ inputs.fail_on }}"
+
+          echo "📦 Scanning directory: $SCAN_TARGET"
           echo "Workdir: $SCAN_WORKDIR"
-          echo "--------------------------------"
-      
-          # Default to repo root if nothing passed
-          if [ -z "$SCAN_TARGETS" ]; then
-            SCAN_TARGETS="."
-          fi
-      
-          # Prepare scanner
-          rm -rf "$SCAN_WORKDIR"
+          echo "Fail on: ${{ inputs.fail_on }}"
+
           mkdir -p "$SCAN_WORKDIR"
           cd "$SCAN_WORKDIR"
-      
+
           echo "📥 Cloning scanner repository"
           git clone --depth 1 https://github.com/elissiafellow/shai-hulud-2-scanner.git .
-      
+
           if [ ! -f "scan.js" ]; then
-            echo "❌ scan.js not found"
+            echo "❌ Scanner file 'scan.js' not found"
             exit 1
           fi
-      
-          IFS=',' read -ra DIRS <<< "$SCAN_TARGETS"
-          SCAN_EXIT=0
-      
-          for DIR in "${DIRS[@]}"; do
-            DIR="$(echo "$DIR" | xargs)"  # trim spaces
-      
-            echo ""
-            echo "🔍 Scanning: $DIR"
-      
-            if [ ! -f "$WORK_DIR/$DIR/package.json" ]; then
-             echo "Skipping $DIR (no package.json)"
-             continue
-            fi
 
-            echo "📦 Installing dependencies in $DIR"
-            cd "$WORK_DIR/$DIR"
+          SCAN_OUTPUT_FILE="$WORK_DIR/scan-results-$(echo "$SCAN_TARGET" | tr '/.' '__').txt"
 
-            if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f package.json ]; then
-              jq 'del(.devDependencies["mf-ni-wrapper"]) |
-                  del(.devDependencies["com.adjust.sdk"])' \
-                package.json > temp.package.json
-              mv package.json original.package.json
-              mv temp.package.json package.json
-            fi
-
-            npm install --ignore-scripts --no-audit --no-fund
-
-            if [ "${{ inputs.strip_private_deps }}" = "true" ] && [ -f original.package.json ]; then
-              mv original.package.json package.json
-            fi
-
-            cd "$SCAN_WORKDIR"
-      
-            RESULT_FILE="$WORK_DIR/scan-results-$(echo "$DIR" | tr '/.' '__').txt"
-      
-            if node scan.js "$WORK_DIR/$DIR" --deep --fail-on=${{ inputs.fail_on }} \
-                > "$RESULT_FILE" 2>&1; then
-              echo "✅ Passed: $DIR"
-            else
-              echo "❌ Failed: $DIR"
-              SCAN_EXIT=1
-            fi
-          done
-      
-          # Copy CSV if generated
-          if [ -f "shai-hulud-report.csv" ]; then
-            cp shai-hulud-report.csv "$WORK_DIR/"
-            echo "📄 CSV report copied"
+          if node scan.js "$WORK_DIR/$SCAN_TARGET" --deep --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
+            SCAN_EXIT=0
+          else
+            SCAN_EXIT=$?
           fi
-      
-          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> "$GITHUB_OUTPUT"
-      
+
+          echo ""
+          echo "=== Scan Results ==="
+          cat "$SCAN_OUTPUT_FILE"
+          echo "===================="
+
+          if [ -f "shai-hulud-report.csv" ]; then
+            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️ Could not copy CSV report"
+            echo "📄 CSV report available"
+          fi
+
+          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
+          echo "SCAN_RESULTS_FILE=$SCAN_OUTPUT_FILE" >> $GITHUB_OUTPUT
+
           cd "$WORK_DIR"
           rm -rf "$SCAN_WORKDIR"
-      
+
+          if [ $SCAN_EXIT -ne 0 ]; then
+            echo "❌ Scanner found issues (exit code: $SCAN_EXIT)"
+          else
+            echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
+          fi
           exit $SCAN_EXIT
-        
 
       - name: Upload scan results
         if: always()

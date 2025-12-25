@@ -1,13 +1,15 @@
 {
-    "name": "good-example",
+    "name": "good-project",
     "version": "1.0.0",
-    "private": true,
-    "description": "Clean dependency set for testing",
-    "license": "MIT",
+    "description": "A safe project for testing",
+    "main": "index.js",
     "scripts": {
         "start": "node index.js"
     },
     "dependencies": {
         "lodash": "^4.17.21"
+    },
+    "devDependencies": {
+        "jest": "^29.0.0"
     }
 }
