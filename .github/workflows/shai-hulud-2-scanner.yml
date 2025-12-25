@@ -75,18 +75,18 @@ jobs:
 
       # - name: Install dependencies with npm
       #   run: npm install
-      - name: Install dependencies
-        run: |
-          if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
-            mv package.json original.package.json
-            mv temp.package.json package.json
-          fi
+      # - name: Install dependencies
+      #   run: |
+      #     if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
+      #       mv package.json original.package.json
+      #       mv temp.package.json package.json
+      #     fi
 
-          npm install
+      #     npm install
 
-          if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
-            mv original.package.json package.json
-          fi
+      #     if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
+      #       mv original.package.json package.json
+      #     fi
 
       - name: Run Shai-Hulud Supply Chain Scanner
         id: scan
@@ -166,7 +166,7 @@ jobs:
         with:
           name: shai-hulud-scan-results-${{ github.run_id }}
           path: |
-            scan-results.txt
+            scan-results-*.txt
             shai-hulud-report.csv
           retention-days: 30
           if-no-files-found: ignore
