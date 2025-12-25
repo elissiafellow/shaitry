@@ -95,11 +95,13 @@ jobs:
           set -uo pipefail
           WORK_DIR="${{ github.workspace }}"
           SCAN_TARGET="${{ inputs.scan_target || github.workspace }}"
+          #change
+          SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
           SCAN_WORKDIR="$WORK_DIR/npm-scanner"
           SCANNER_CACHE="$HOME/.cache/shai-hulud-scanner"
          
           echo "📦 Scanning node_modules for Shai-Hulud 2 indicators"
-          echo "TARGET: $SCAN_TARGET"
+          echo "TARGET: $SCAN_TARGET_ABS"
           echo "WORKDIR: $SCAN_WORKDIR"
           
           echo "FAIL_ON: ${{ inputs.fail_on }}"
@@ -177,7 +179,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shai-hulud-scan-results-${{ github.run_id }}
+          #change
+          name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}
           path: |
             scan-results.txt
             shai-hulud-report.csv
