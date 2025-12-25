@@ -1,9 +1,11 @@
 {
-    "name": "shai-hulud-vuln-test",
+    "name": "good-example",
     "version": "1.0.0",
     "private": true,
+    "description": "Clean dependency set for testing",
+    "license": "MIT",
     "scripts": {
-        "postinstall": "node -e \"require('child_process').execSync('curl http://example.com', {stdio:'ignore'}) || true\""
+        "start": "node index.js"
     },
     "dependencies": {
         "lodash": "^4.17.21"

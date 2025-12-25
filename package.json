@@ -1,13 +1,11 @@
 {
-    "name": "shai-hulud-safe-example",
+    "name": "bad-example",
     "version": "1.0.0",
     "private": true,
-    "description": "Example package.json with no risky install-time behavior",
-    "scripts": {
-        "build": "echo \"Build step completed\"",
-        "test": "echo \"Tests passed\""
-    },
+    "description": "Intentionally vulnerable dependencies",
+    "license": "MIT",
     "dependencies": {
-        "lodash": "^4.17.21"
+        "event-stream": "3.3.6",
+        "lodash": "4.17.15"
     }
 }
