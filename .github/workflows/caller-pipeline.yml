@@ -18,7 +18,6 @@ jobs:
 
 
   scan-frontend:
-    needs: scan-root
     uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
     with:
       node_version: "18"
