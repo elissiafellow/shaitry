@@ -131,8 +131,8 @@ jobs:
             echo "🔍 Scanning: $DIR"
       
             if [ ! -f "$WORK_DIR/$DIR/package.json" ]; then
-              echo "❌ $DIR/package.json not found"
-              exit 1
+             echo "Skipping $DIR (no package.json)"
+             continue
             fi
       
             RESULT_FILE="$WORK_DIR/scan-results-$(echo "$DIR" | tr '/.' '__').txt"
