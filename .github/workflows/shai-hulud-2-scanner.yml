@@ -117,7 +117,11 @@ jobs:
             echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
           fi
           exit $SCAN_EXIT
-
+      - name: List scan directory
+        run: |
+          echo "Files in scanner folder:"
+          ls -la "$GITHUB_WORKSPACE/npm-scanner"
+        
       - name: Upload scan results
         if: always()
         uses: actions/upload-artifact@v4
