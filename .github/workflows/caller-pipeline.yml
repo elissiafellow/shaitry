@@ -13,4 +13,4 @@ jobs:
       node_version: "18"
       fail_on: "low"
       strip_private_deps: false
-      scan_target: "frontend"
+      scan_target: ".,frontend"
