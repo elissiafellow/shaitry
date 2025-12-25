@@ -177,10 +177,11 @@ jobs:
           fi
           exit $SCAN_EXIT
  #change
-      - name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
+      - name: Upload scan results
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
           path: |
             scan-results.txt
             shai-hulud-report.csv
