@@ -31,7 +31,7 @@ on:
         description: 'Severity level to fail on (critical, high, medium, low)'
         required: false
         type: string
-        default: 'critical'
+        default: 'low'
       artifact_name_suffix:
         description: 'Suffix to make the artifact name unique per caller'
         required: false
