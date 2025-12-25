@@ -13,3 +13,4 @@ jobs:
       scan_target: ${{ github.workspace }}
       fail_on: "low"
       strip_private_deps: false
+      scan_target: ".,frontend"

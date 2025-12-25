@@ -22,15 +22,10 @@ on:
         type: string
         default: ''
       scan_target:
-        description: 'Directory to scan for Shai-Hulud 2 indicators'
+        description: 'Comma-separated directories to scan (each must contain package.json)'
         required: false
         type: string
         default: ''
-      # scanner_version:
-      #   description: 'Scanner version/tag to use'
-      #   required: false
-      #   type: string
-      #   default: 'v1.3.1'
       fail_on:
         description: 'Severity level to fail on (critical, high, medium, low)'
         required: false
@@ -96,83 +91,82 @@ jobs:
       - name: Run Shai-Hulud Supply Chain Scanner
         id: scan
         run: |
-          set -uo pipefail
+          set -euo pipefail
+      
           WORK_DIR="${{ github.workspace }}"
-          SCAN_TARGET="${{ inputs.scan_target || github.workspace }}"
+          SCAN_TARGETS="${{ inputs.scan_target }}"
           SCAN_WORKDIR="$WORK_DIR/npm-scanner"
-          SCANNER_CACHE="$HOME/.cache/shai-hulud-scanner"
-         
-          echo "📦 Scanning node_modules for Shai-Hulud 2 indicators"
-          echo "TARGET: $SCAN_TARGET"
-          echo "WORKDIR: $SCAN_WORKDIR"
-          
-          echo "FAIL_ON: ${{ inputs.fail_on }}"
+      
+          echo "📦 Shai-Hulud 2 Scan"
+          echo "Targets: ${SCAN_TARGETS:-.}"
+          echo "Fail on: ${{ inputs.fail_on }}"
+          echo "Workdir: $SCAN_WORKDIR"
+          echo "--------------------------------"
+      
+          # Default to repo root if nothing passed
+          if [ -z "$SCAN_TARGETS" ]; then
+            SCAN_TARGETS="."
+          fi
+      
+          # Prepare scanner
+          rm -rf "$SCAN_WORKDIR"
           mkdir -p "$SCAN_WORKDIR"
           cd "$SCAN_WORKDIR"
-          # Use cached scanner if available and version matches
-            echo "📥 Cloning scanner repository (main)"
-            git clone --depth 1 https://github.com/moneYOUnion/shai-hulud-2-scanner.git .
-
-          #   # Verify we got the right version
-          #   # When cloning a tag, git shows commit SHA in detached HEAD state, which is normal
-          #   # if [ -f ".git/HEAD" ]; then
-          #   #   HEAD_CONTENT=$(cat .git/HEAD)
-          #   #   # Check if we're on the expected tag
-          #   #   # if git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^$SCANNER_VERSION$"; then
-                
-          #   #   # elif git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^${SCANNER_VERSION#v}$"; then
-          #   #   #   echo "✅ Verified scanner version: ${SCANNER_VERSION#v}"
-          #   #   # else
-          #   #   #   # In detached HEAD state with tag, this is normal - just log it
-          #   #   #   CURRENT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "detached-HEAD")
-          #   #   #   if [ "$CURRENT_TAG" != "detached-HEAD" ]; then
-          #   #   #     echo "✅ Scanner cloned successfully (tag: $CURRENT_TAG)"
-          #   #   #   else
-          #   #   #     echo "✅ Scanner cloned successfully (detached HEAD state is normal for tag clones)"
-          #   #   #   fi
-          #   #   # fi
-          #   # fi
-          #   # Cache for future runs
-          #   mkdir -p "$SCANNER_CACHE"
-          #   cp -r . "$SCANNER_CACHE/" 2>/dev/null || {
-          #     echo "⚠️  Warning: Could not cache scanner (non-fatal)"
-          #   }
-          #   echo "$SCANNER_VERSION" > "$SCANNER_CACHE/.version"
-          # fi
-          # Verify scanner files exist
+      
+          echo "📥 Cloning scanner repository"
+          git clone --depth 1 https://github.com/elissiafellow/shai-hulud-2-scanner.git .
+      
           if [ ! -f "scan.js" ]; then
-            echo "❌ Scanner file 'scan.js' not found after clone/cache"
+            echo "❌ scan.js not found"
             exit 1
           fi
-          # Do the scan
-          echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
-          SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
-          if node scan.js "$SCAN_TARGET" --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
-            SCAN_EXIT=0
-          else
-            SCAN_EXIT=$?
-          fi
-          # Output results
-          echo ""
-          echo "=== Scan Results ==="
-          cat "$SCAN_OUTPUT_FILE"
-          echo "===================="
-          echo ""
-          # Copy CSV report if it exists (scanner generates it in current directory)
+      
+          IFS=',' read -ra DIRS <<< "$SCAN_TARGETS"
+          SCAN_EXIT=0
+      
+          for DIR in "${DIRS[@]}"; do
+            DIR="$(echo "$DIR" | xargs)"  # trim spaces
+      
+            echo ""
+            echo "🔍 Scanning: $DIR"
+      
+            if [ ! -f "$WORK_DIR/$DIR/package.json" ]; then
+              echo "❌ $DIR/package.json not found"
+              exit 1
+            fi
+      
+            RESULT_FILE="$WORK_DIR/scan-results-$(echo "$DIR" | tr '/.' '__').txt"
+      
+            if node scan.js "$WORK_DIR/$DIR" --deep --fail-on=${{ inputs.fail_on }} \
+                > "$RESULT_FILE" 2>&1; then
+              echo "✅ Passed: $DIR"
+            else
+              echo "❌ Failed: $DIR"
+              SCAN_EXIT=1
+            fi
+          done
+      
+          # Copy CSV if generated
           if [ -f "shai-hulud-report.csv" ]; then
-            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️  Could not copy CSV report (non-fatal)"
-            echo "📄 CSV report available: shai-hulud-report.csv"
+            cp shai-hulud-report.csv "$WORK_DIR/"
+            echo "📄 CSV report copied"
           fi
-          # Set output for downstream steps
-          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
-          echo "SCAN_RESULTS_FILE=$SCAN_OUTPUT_FILE" >> $GITHUB_OUTPUT
-          # Cleanup scanner workdir (keep results file and CSV)
+      
+          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> "$GITHUB_OUTPUT"
+      
           cd "$WORK_DIR"
           rm -rf "$SCAN_WORKDIR"
-          if [ $SCAN_EXIT -ne 0 ]; then
-            echo "❌ Scanner found issues (exit code: $SCAN_EXIT)"
-            echo "   Review scan results above for details"
-          else
-            echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
-          fi
+      
           exit $SCAN_EXIT
+        
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shai-hulud-scan-results-${{ github.run_id }}
+          path: |
+            scan-results.txt
+            shai-hulud-report.csv
+          retention-days: 30
+          if-no-files-found: ignore
