@@ -1,13 +1,11 @@
 {
-    "name": "good-example",
+    "name": "bad-example",
     "version": "1.0.0",
     "private": true,
-    "description": "Clean dependency set for testing",
+    "description": "Intentionally vulnerable dependencies",
     "license": "MIT",
-    "scripts": {
-        "start": "node index.js"
-    },
     "dependencies": {
-        "lodash": "^4.17.21"
+        "event-stream": "3.3.6",
+        "lodash": "4.17.15"
     }
 }
