@@ -14,6 +14,8 @@ jobs:
       fail_on: "low"
       strip_private_deps: false
       scan_target: "."  # root package.json
+      artifact_name_suffix: "root"
+
 
   scan-frontend:
     needs: scan-root
@@ -23,3 +25,4 @@ jobs:
       fail_on: "low"
       strip_private_deps: false
       scan_target: "frontend"  # frontend package.json
+      artifact_name_suffix: "frontend"

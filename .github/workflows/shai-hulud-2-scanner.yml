@@ -32,6 +32,12 @@ on:
         required: false
         type: string
         default: 'critical'
+      artifact_name_suffix:
+        description: 'Suffix to make the artifact name unique per caller'
+        required: false
+        type: string
+        default: 'default'
+
    
 
 jobs:
@@ -181,7 +187,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shai-hulud-scan-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
+          name: shai-hulud-scan-results-${{ github.run_id }}-${{ inputs.artifact_name_suffix }}
           path: |
             scan-results.txt
             shai-hulud-report.csv
