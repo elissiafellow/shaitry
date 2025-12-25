@@ -134,6 +134,12 @@ jobs:
              echo "Skipping $DIR (no package.json)"
              continue
             fi
+
+            if [ ! -d "$WORK_DIR/$DIR/node_modules" ] && \
+              [ ! -f "$WORK_DIR/$DIR/package-lock.json" ]; then
+              echo "Skipping $DIR (no node_modules or lockfile)"
+              continue
+            fi
       
             RESULT_FILE="$WORK_DIR/scan-results-$(echo "$DIR" | tr '/.' '__').txt"
       
