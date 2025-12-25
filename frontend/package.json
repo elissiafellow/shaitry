@@ -1,7 +1,7 @@
 {
-    "name": "frontend-bad",
+    "name": "scanner-test",
     "version": "1.0.0",
     "dependencies": {
-        "event-stream": "3.3.4"
+        "left-pad-malicious": "1.0.0"
     }
 }
