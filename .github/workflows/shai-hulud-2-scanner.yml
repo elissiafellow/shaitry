@@ -143,6 +143,8 @@ jobs:
             exit 1
           fi
           # Do the scan
+          SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
+
           echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
           SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
           if node scan.js "$SCAN_TARGET_ABS" --deep --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
