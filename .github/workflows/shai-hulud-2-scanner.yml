@@ -100,9 +100,10 @@ jobs:
           cat "$SCAN_OUTPUT_FILE"
           echo "===================="
 
+          CSV_REPORT_FILE="$WORK_DIR/shai-hulud-report-$(echo "$SCAN_TARGET" | tr '/.' '__').csv"
           if [ -f "shai-hulud-report.csv" ]; then
-            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️ Could not copy CSV report"
-            echo "📄 CSV report available"
+            mv "shai-hulud-report.csv" "$CSV_REPORT_FILE" || echo "⚠️ Could not rename CSV report"
+            echo "📄 CSV report available: $CSV_REPORT_FILE"
           fi
 
           echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
@@ -126,5 +127,3 @@ jobs:
           path: |
             scan-results-*.txt
             shai-hulud-report.csv
-          retention-days: 30
-          if-no-files-found: ignore
