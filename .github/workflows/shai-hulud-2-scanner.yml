@@ -126,4 +126,4 @@ jobs:
           name: shai-hulud-scan-results-${{ github.run_id }}
           path: |
             scan-results-*.txt
-            shai-hulud-report.csv
+            shai-hulud-report-*.csv
