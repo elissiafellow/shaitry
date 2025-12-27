@@ -4,6 +4,6 @@
     "dependencies": {
         "zapier-platform-core": "latest",
         "zapier-platform-cli": "latest",
-        "@posthog/agent": "latest"
+        "@posthog/agent": "1.24.1"
     }
 }
