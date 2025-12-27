@@ -2,8 +2,7 @@
     "name": "scanner-test-real",
     "version": "1.0.0",
     "dependencies": {
-        "zapier-platform-core": "latest",
-        "zapier-platform-cli": "latest",
-        "@posthog/agent": "1.24.1"
+        "lodash": "^4.17.21",
+        "express": "^4.18.0"
     }
 }

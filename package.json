@@ -2,7 +2,7 @@
     "name": "scanner-failure-test",
     "version": "1.0.0",
     "dependencies": {
-        "posthog-js": "1.297.3",
-        "@posthog/agent": "1.24.1"
+        "lodash": "^4.17.21",
+        "axios": "^1.6.0"
     }
 }
