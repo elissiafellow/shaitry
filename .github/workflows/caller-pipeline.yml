@@ -8,20 +8,16 @@ on:
 
 jobs:
   scan-root:
-    uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
+    uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@npm-scanner
     with:
       node_version: "18"
-      fail_on: "low"
-      strip_private_deps: false
       scan_target: "."  # root package.json
       artifact_name_suffix: "root"
 
 
   scan-frontend:
-    uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@main
+    uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@npm-scanner
     with:
       node_version: "18"
-      fail_on: "low"
-      strip_private_deps: false
       scan_target: "frontend"  # frontend package.json
       artifact_name_suffix: "frontend"
