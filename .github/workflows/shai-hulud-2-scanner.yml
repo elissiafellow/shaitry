@@ -22,23 +22,21 @@ on:
         required: false
         type: string
         default: ''
-      # scanner_version:
-      #   description: 'Scanner version/tag to use'
-      #   required: false
-      #   type: string
-      #   default: 'v1.3.1'
       fail_on:
-        description: 'Severity level to fail on (critical, high, medium, low)'
+        description: 'Severity level to fail on (critical, warning, off)'
         required: false
         type: string
-        default: 'low'
+        default: 'critical'
       artifact_name_suffix:
         description: 'Suffix to make the artifact name unique per caller'
         required: false
         type: string
         default: 'default'
-
-   
+      scanner_version:
+        description: 'Scanner version to use (commit SHA, tag, or branch). Leave empty to use latest from main branch.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   scan:
@@ -70,20 +68,24 @@ jobs:
           npm install -g npm@${{ inputs.npm_version }}
           npm -v
 
-
-      # - name: Cache scanner
-      #   uses: actions/cache@v3
-      #   id: scanner-cache
-      #   with:
-      #     path: ~/.cache/shai-hulud-scanner
-      #     key: shai-hulud-scanner
-      #     restore-keys: |
-      #       shai-hulud-scanner-
-
-      # - name: Install dependencies with npm
-      #   run: npm install
+      - name: Cache scanner
+        uses: actions/cache@v4
+        id: scanner-cache
+        with:
+          path: ~/.cache/shai-hulud-scanner
+          key: shai-hulud-scanner-${{ inputs.scanner_version || 'main-latest' }}
+          restore-keys: |
+            shai-hulud-scanner-
       - name: Install dependencies
         run: |
+          SCAN_TARGET="${{ inputs.scan_target || '.' }}"
+          if [ "$SCAN_TARGET" != "." ] && [ "$SCAN_TARGET" != "${{ github.workspace }}" ]; then
+            cd "$SCAN_TARGET" || {
+              echo "❌ Could not change to directory: $SCAN_TARGET"
+              exit 1
+            }
+          fi
+          
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv package.json original.package.json
             mv temp.package.json package.json
@@ -94,66 +96,92 @@ jobs:
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv original.package.json package.json
           fi
+          
+          cd "${{ github.workspace }}"
 
       - name: Run Shai-Hulud Supply Chain Scanner
         id: scan
         run: |
           set -uo pipefail
           WORK_DIR="${{ github.workspace }}"
-          SCAN_TARGET="${{ inputs.scan_target || github.workspace }}"
-          #change
-          SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
+          SCAN_TARGET="${{ inputs.scan_target || '.' }}"
           SCAN_WORKDIR="$WORK_DIR/npm-scanner"
           SCANNER_CACHE="$HOME/.cache/shai-hulud-scanner"
+          SCANNER_REPO="https://github.com/moneYOUnion/shai-hulud-2-scanner.git"
+          SCANNER_VERSION="${{ inputs.scanner_version }}"
          
           echo "📦 Scanning node_modules for Shai-Hulud 2 indicators"
-          echo "TARGET: $SCAN_TARGET_ABS"
+          echo "TARGET: $SCAN_TARGET"
           echo "WORKDIR: $SCAN_WORKDIR"
-          
           echo "FAIL_ON: ${{ inputs.fail_on }}"
+          
           mkdir -p "$SCAN_WORKDIR"
           cd "$SCAN_WORKDIR"
-          # Use cached scanner if available and version matches
-            echo "📥 Cloning scanner repository (main)"
-            git clone --depth 1 https://github.com/moneYOUnion/shai-hulud-2-scanner.git .
-
-          #   # Verify we got the right version
-          #   # When cloning a tag, git shows commit SHA in detached HEAD state, which is normal
-          #   # if [ -f ".git/HEAD" ]; then
-          #   #   HEAD_CONTENT=$(cat .git/HEAD)
-          #   #   # Check if we're on the expected tag
-          #   #   # if git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^$SCANNER_VERSION$"; then
-                
-          #   #   # elif git describe --tags --exact-match HEAD 2>/dev/null | grep -q "^${SCANNER_VERSION#v}$"; then
-          #   #   #   echo "✅ Verified scanner version: ${SCANNER_VERSION#v}"
-          #   #   # else
-          #   #   #   # In detached HEAD state with tag, this is normal - just log it
-          #   #   #   CURRENT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "detached-HEAD")
-          #   #   #   if [ "$CURRENT_TAG" != "detached-HEAD" ]; then
-          #   #   #     echo "✅ Scanner cloned successfully (tag: $CURRENT_TAG)"
-          #   #   #   else
-          #   #   #     echo "✅ Scanner cloned successfully (detached HEAD state is normal for tag clones)"
-          #   #   #   fi
-          #   #   # fi
-          #   # fi
-          #   # Cache for future runs
-          #   mkdir -p "$SCANNER_CACHE"
-          #   cp -r . "$SCANNER_CACHE/" 2>/dev/null || {
-          #     echo "⚠️  Warning: Could not cache scanner (non-fatal)"
-          #   }
-          #   echo "$SCANNER_VERSION" > "$SCANNER_CACHE/.version"
-          # fi
+          
+          # Use cached scanner if available
+          if [ "${{ steps.scanner-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "✅ Using cached scanner (version: ${SCANNER_VERSION:-main})"
+            cp -r "$SCANNER_CACHE"/* . 2>/dev/null || {
+              echo "⚠️  Cache restore failed, will clone fresh"
+              rm -rf "$SCAN_WORKDIR"/*
+            }
+          fi
+          
+          # Clone scanner if not cached or cache restore failed
+          if [ ! -f "scan.js" ]; then
+            if [ -n "$SCANNER_VERSION" ]; then
+              echo "📥 Cloning scanner repository (version: $SCANNER_VERSION)"
+              # Try to clone specific version (could be commit SHA, tag, or branch)
+              git clone --depth 1 --branch "$SCANNER_VERSION" "$SCANNER_REPO" . 2>/dev/null || {
+                # If branch/tag fails, try cloning and checking out the commit SHA
+                echo "⚠️  Branch/tag not found, trying as commit SHA..."
+                git clone --depth 1 "$SCANNER_REPO" . || exit 1
+                git fetch --depth=100 origin "$SCANNER_VERSION" 2>/dev/null || true
+                git checkout "$SCANNER_VERSION" 2>/dev/null || {
+                  echo "❌ Could not checkout version: $SCANNER_VERSION"
+                  exit 1
+                }
+              }
+            else
+              echo "📥 Cloning scanner repository (latest from main branch)"
+              git clone --depth 1 "$SCANNER_REPO" .
+            fi
+            
+            # Cache the scanner for future runs
+            if [ "${{ steps.scanner-cache.outputs.cache-hit }}" != "true" ]; then
+              echo "💾 Caching scanner for future runs..."
+              mkdir -p "$SCANNER_CACHE"
+              cp -r . "$SCANNER_CACHE/" 2>/dev/null || {
+                echo "⚠️  Warning: Could not cache scanner (non-fatal)"
+              }
+            fi
+          fi
+          
           # Verify scanner files exist
           if [ ! -f "scan.js" ]; then
             echo "❌ Scanner file 'scan.js' not found after clone/cache"
             exit 1
           fi
+          
+          # Log the version being used
+          CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+          echo "✅ Using scanner at commit: $CURRENT_COMMIT"
           # Do the scan
-          SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
-
+          # Resolve scan target to absolute path
+          if [ "$SCAN_TARGET" = "." ] || [ -z "$SCAN_TARGET" ]; then
+            SCAN_TARGET_ABS="$WORK_DIR"
+          elif [ "${SCAN_TARGET#/}" = "$SCAN_TARGET" ]; then
+            # Relative path
+            SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
+          else
+            # Absolute path
+            SCAN_TARGET_ABS="$SCAN_TARGET"
+          fi
+          
           echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
+          echo "Scanning: $SCAN_TARGET_ABS"
           SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
-          if node scan.js "$SCAN_TARGET_ABS" --deep --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
+          if node scan.js "$SCAN_TARGET_ABS" --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
             SCAN_EXIT=0
           else
             SCAN_EXIT=$?
@@ -182,12 +210,12 @@ jobs:
             echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
           fi
           exit $SCAN_EXIT
- #change
+
       - name: Upload scan results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shai-hulud-scan-results-${{ github.run_id }}-${{ inputs.artifact_name_suffix }}
+          name: shai-hulud-scan-results-${{ github.run_id }}
           path: |
             scan-results.txt
             shai-hulud-report.csv
