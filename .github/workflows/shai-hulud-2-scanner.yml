@@ -78,14 +78,6 @@ jobs:
             shai-hulud-scanner-
       - name: Install dependencies
         run: |
-          SCAN_TARGET="${{ inputs.scan_target || '.' }}"
-          if [ "$SCAN_TARGET" != "." ] && [ "$SCAN_TARGET" != "${{ github.workspace }}" ]; then
-            cd "$SCAN_TARGET" || {
-              echo "❌ Could not change to directory: $SCAN_TARGET"
-              exit 1
-            }
-          fi
-          
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv package.json original.package.json
             mv temp.package.json package.json
@@ -96,22 +88,19 @@ jobs:
           if [ "${{ inputs.strip_private_deps }}" = "true" ]; then
             mv original.package.json package.json
           fi
-          
-          cd "${{ github.workspace }}"
 
       - name: Run Shai-Hulud Supply Chain Scanner
         id: scan
         run: |
           set -uo pipefail
           WORK_DIR="${{ github.workspace }}"
-          SCAN_TARGET="${{ inputs.scan_target || '.' }}"
           SCAN_WORKDIR="$WORK_DIR/npm-scanner"
           SCANNER_CACHE="$HOME/.cache/shai-hulud-scanner"
           SCANNER_REPO="https://github.com/moneYOUnion/shai-hulud-2-scanner.git"
           SCANNER_VERSION="${{ inputs.scanner_version }}"
          
-          echo "📦 Scanning node_modules for Shai-Hulud 2 indicators"
-          echo "TARGET: $SCAN_TARGET"
+          echo "📦 Scanning for Shai-Hulud 2 indicators"
+          echo "Scanner will recursively find all lockfiles in the repository"
           echo "WORKDIR: $SCAN_WORKDIR"
           echo "FAIL_ON: ${{ inputs.fail_on }}"
           
@@ -166,20 +155,21 @@ jobs:
           # Log the version being used
           CURRENT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
           echo "✅ Using scanner at commit: $CURRENT_COMMIT"
-          # Do the scan
-          # Resolve scan target to absolute path
-          if [ "$SCAN_TARGET" = "." ] || [ -z "$SCAN_TARGET" ]; then
+          
+          # Resolve scan target (defaults to workspace root if not specified)
+          SCAN_TARGET_INPUT="${{ inputs.scan_target }}"
+          if [ -z "$SCAN_TARGET_INPUT" ] || [ "$SCAN_TARGET_INPUT" = "." ]; then
             SCAN_TARGET_ABS="$WORK_DIR"
-          elif [ "${SCAN_TARGET#/}" = "$SCAN_TARGET" ]; then
-            # Relative path
-            SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET"
-          else
+          elif [ "${SCAN_TARGET_INPUT#/}" != "$SCAN_TARGET_INPUT" ]; then
             # Absolute path
-            SCAN_TARGET_ABS="$SCAN_TARGET"
+            SCAN_TARGET_ABS="$SCAN_TARGET_INPUT"
+          else
+            # Relative path
+            SCAN_TARGET_ABS="$WORK_DIR/$SCAN_TARGET_INPUT"
           fi
           
           echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
-          echo "Scanning: $SCAN_TARGET_ABS"
+          echo "Scanning: $SCAN_TARGET_ABS (recursive scan will find all lockfiles)"
           SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
           if node scan.js "$SCAN_TARGET_ABS" --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
             SCAN_EXIT=0
