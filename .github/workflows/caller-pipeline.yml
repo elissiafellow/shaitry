@@ -12,12 +12,13 @@ jobs:
     with:
       node_version: "18"
       scan_target: "."  # root package.json
+      #fail_on: "critical"  # Options: critical, warning, off
       artifact_name_suffix: "root"
-
 
   scan-frontend:
     uses: elissiafellow/shaitry/.github/workflows/shai-hulud-2-scanner.yml@npm-scanner
     with:
       node_version: "18"
       scan_target: "frontend"  # frontend package.json
+      #fail_on: "critical"  # Options: critical, warning, off
       artifact_name_suffix: "frontend"
