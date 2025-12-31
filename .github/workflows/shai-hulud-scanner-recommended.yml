@@ -1,0 +1,147 @@
+name: Shai-Hulud 2 Scanner
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: 'Node.js version (defaults to 20.x)'
+        required: false
+        type: string
+        default: '20.x'
+      scan_target:
+        description: 'Directory to scan (defaults to workspace root)'
+        required: false
+        type: string
+        default: ''
+      scanner_version:
+        description: 'Scanner version from your fork (tag, branch, or commit SHA). Defaults to main branch (latest).'
+        required: false
+        type: string
+        default: 'main'
+      fail_on:
+        description: 'Severity level to fail on (critical, warning, off)'
+        required: false
+        type: string
+        default: 'critical'
+      install_dependencies:
+        description: 'Run npm install to scan node_modules (set false to scan lockfiles only)'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      - name: Cache scanner
+        uses: actions/cache@v4
+        id: scanner-cache
+        with:
+          path: ~/.cache/shai-hulud-scanner
+          key: scanner-${{ inputs.scanner_version }}
+
+      - name: Install dependencies
+        if: inputs.install_dependencies
+        run: npm install
+
+      - name: Setup and run scanner
+        id: scan
+        run: |
+          set -uo pipefail
+          WORK_DIR="${{ github.workspace }}"
+          SCAN_TARGET="${{ inputs.scan_target || github.workspace }}"
+          SCANNER_DIR="$HOME/.cache/shai-hulud-scanner"
+          SCANNER_REPO="https://github.com/moneYOUnion/shai-hulud-2-scanner.git"
+          SCANNER_VERSION="${{ inputs.scanner_version }}"
+          
+          echo "📦 Scanning for Shai-Hulud 2 indicators"
+          echo "TARGET: $SCAN_TARGET"
+          echo "SCANNER_VERSION: $SCANNER_VERSION"
+          echo "FAIL_ON: ${{ inputs.fail_on }}"
+          
+          # Setup scanner from cache or clone
+          if [ "${{ steps.scanner-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "📥 Cloning scanner from your fork (version: $SCANNER_VERSION)..."
+            mkdir -p "$SCANNER_DIR"
+            cd "$SCANNER_DIR"
+            
+            # Clone and checkout version (works for branch, tag, or commit SHA)
+            if [ "$SCANNER_VERSION" = "main" ] || [ -z "$SCANNER_VERSION" ]; then
+              # Shallow clone for main branch (faster)
+              git clone --depth 1 --branch main "$SCANNER_REPO" . || exit 1
+            else
+              # Full clone needed for tags/commits
+              git clone "$SCANNER_REPO" . || exit 1
+              git checkout "$SCANNER_VERSION" || {
+                echo "❌ Could not checkout version: $SCANNER_VERSION"
+                exit 1
+              }
+            fi
+            
+            # Cache for future runs (GitHub Actions cache will save this automatically)
+            echo "✅ Scanner cloned successfully"
+          else
+            echo "✅ Using cached scanner"
+            cd "$SCANNER_DIR"
+          fi
+          
+          # Verify scanner files exist
+          if [ ! -f "scan.js" ]; then
+            echo "❌ Scanner file 'scan.js' not found after clone/cache"
+            exit 1
+          fi
+          
+          # Do the scan (run from scanner directory where scan.js is located)
+          echo "🔍 Running scan with --fail-on=${{ inputs.fail_on }}..."
+          SCAN_OUTPUT_FILE="$WORK_DIR/scan-results.txt"
+          cd "$SCANNER_DIR"
+          if node scan.js "$SCAN_TARGET" --fail-on=${{ inputs.fail_on }} > "$SCAN_OUTPUT_FILE" 2>&1; then
+            SCAN_EXIT=0
+          else
+            SCAN_EXIT=$?
+          fi
+          
+          # Output results
+          echo ""
+          echo "=== Scan Results ==="
+          cat "$SCAN_OUTPUT_FILE"
+          echo "===================="
+          echo ""
+          
+          # Copy CSV report if it exists (scanner generates it in scanner directory)
+          if [ -f "shai-hulud-report.csv" ]; then
+            cp "shai-hulud-report.csv" "$WORK_DIR/" || echo "⚠️  Could not copy CSV report (non-fatal)"
+            echo "📄 CSV report available: shai-hulud-report.csv"
+          fi
+          
+          # Set output for downstream steps
+          echo "SCAN_EXIT_CODE=$SCAN_EXIT" >> $GITHUB_OUTPUT
+          echo "SCAN_RESULTS_FILE=$SCAN_OUTPUT_FILE" >> $GITHUB_OUTPUT
+          
+          if [ $SCAN_EXIT -ne 0 ]; then
+            echo "❌ Scanner found issues (exit code: $SCAN_EXIT)"
+            echo "   Review scan results above for details"
+          else
+            echo "✅ Scanner passed - no ${{ inputs.fail_on }} issues found"
+          fi
+          exit $SCAN_EXIT
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shai-hulud-scan-results-${{ github.run_id }}
+          path: |
+            scan-results.txt
+            shai-hulud-report.csv
+          retention-days: 30
+          if-no-files-found: ignore
+
